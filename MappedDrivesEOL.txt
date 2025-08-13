@@ -1,0 +1,54 @@
+# ------------------------------------------------------------
+# DriveMappings-Export.ps1 (OneDrive via Environment registry)
+# ------------------------------------------------------------
+
+# 1) Identify the logged-on user and their SID
+$user      = (Get-CimInstance Win32_ComputerSystem).UserName
+$ntAccount = New-Object System.Security.Principal.NTAccount($user)
+$sid       = $ntAccount.Translate(
+               [System.Security.Principal.SecurityIdentifier]
+             ).Value
+
+# 2) Read the OneDrive path from HKU\<SID>\Environment
+$envReg   = "Registry::HKEY_USERS\$sid\Environment"
+$oneDrive = $null
+
+# Try business OneDrive first
+try {
+    $oneDrive = (Get-ItemProperty -Path $envReg -Name "OneDriveCommercial" -ErrorAction Stop).OneDriveCommercial
+} catch {
+    # Then consumer OneDrive
+    try {
+        $oneDrive = (Get-ItemProperty -Path $envReg -Name "OneDrive" -ErrorAction Stop).OneDrive
+    } catch {
+        $oneDrive = $null
+    }
+}
+
+# 3) Fallback to default in case registry keys aren’t present
+if (-not $oneDrive -or -not (Test-Path $oneDrive)) {
+    $oneDrive = "C:\Users\$user\OneDrive"
+    if (-not (Test-Path $oneDrive)) {
+        Write-Error "Cannot locate OneDrive folder for $user"
+        exit 1
+    }
+}
+
+# 4) Enumerate mapped drives from the user’s registry hive
+$netReg = "Registry::HKEY_USERS\$sid\Network"
+$keys   = Get-ChildItem -Path $netReg -ErrorAction SilentlyContinue
+
+if (-not $keys) {
+    Write-Host "No mapped drives found for $user"
+    exit 0
+}
+
+# 5) Write each mapping to DriveMappings.txt in OneDrive
+$outFile = Join-Path $oneDrive 'DriveMappings.txt'
+foreach ($key in $keys) {
+    $letter = $key.PSChildName + ':'
+    $share  = (Get-ItemProperty -Path $key.PSPath).RemotePath
+    "$letter $share" | Out-File -FilePath $outFile -Append -Encoding UTF8
+}
+
+Write-Host ("Exported {0} mappings to {1}" -f $keys.Count, $outFile)
