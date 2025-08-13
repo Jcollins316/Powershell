@@ -1,4 +1,0 @@
-
-# --- Show Completion Message ---
-msg * " RightFax Successfully Removed. Summary saved at C:\RightFax_Uninstall_Summary.txt"
-
