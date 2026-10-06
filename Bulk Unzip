@@ -1,0 +1,1 @@
+Get-ChildItem 'FILE PATH' -Filter *.zip -Recurse | ForEach-Object { $t = Join-Path $_.DirectoryName $_.BaseName; if (-not (Test-Path $t)) { Expand-Archive $_.FullName -DestinationPath $t; Write-Host "Done: $($_.Name)" } }
